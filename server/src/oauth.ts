@@ -27,11 +27,11 @@ export function oauthAuthorized(token:string) {
 }
 
 export function mountOAuth(app:express.Express, connectionSecret:string) {
-  app.get("/.well-known/oauth-protected-resource/mcp", (req,res) => {
+  app.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"], (req,res) => {
     const base = origin(req);
     res.json({resource:`${base}/mcp`,authorization_servers:[base],bearer_methods_supported:["header"]});
   });
-  app.get("/.well-known/oauth-authorization-server", (req,res) => {
+  app.get(["/.well-known/oauth-authorization-server", "/.well-known/oauth-authorization-server/mcp", "/.well-known/openid-configuration"], (req,res) => {
     const base = origin(req);
     res.json({issuer:base,authorization_endpoint:`${base}/oauth/authorize`,token_endpoint:`${base}/oauth/token`,registration_endpoint:`${base}/oauth/register`,response_types_supported:["code"],grant_types_supported:["authorization_code"],code_challenge_methods_supported:["S256"],token_endpoint_auth_methods_supported:["none"]});
   });
