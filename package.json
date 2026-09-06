@@ -1,0 +1,14 @@
+{
+  "name": "windows-browser-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["shared", "server", "worker"],
+  "scripts": {
+    "build": "npm run build -w @local-browser/shared && npm run build -w @local-browser/server && npm run build -w @local-browser/worker",
+    "test": "npm run build -w @local-browser/shared && npm test -w @local-browser/server && npm test -w @local-browser/worker",
+    "dev:server": "npm run dev -w @local-browser/server",
+    "dev:worker": "npm run dev -w @local-browser/worker"
+  },
+  "engines": {"node": ">=20"}
+}
