@@ -1,5 +1,7 @@
 node_modules
-worker
+worker/*
+!worker/package.json
+!worker/tsconfig.json
 tests
 .git
 *.log
