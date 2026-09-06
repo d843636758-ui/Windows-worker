@@ -10,7 +10,14 @@ export class BrowserManager {
 
   async ensure() {
     if (this.context) return;
-    this.context = await chromium.launchPersistentContext(this.profileDir, {channel:"msedge",headless:!this.headed,viewport:null});
+    this.context = await chromium.launchPersistentContext(this.profileDir, {
+      channel: "msedge",
+      headless: !this.headed,
+      viewport: null,
+      // Windows supports Chromium's process sandbox; keep it enabled for the
+      // dedicated shopping profile instead of accepting Playwright's default.
+      ignoreDefaultArgs: ["--no-sandbox"],
+    });
     this.context.on("page", page => { this.page = page; });
     this.page = this.context.pages()[0] || await this.context.newPage();
   }
