@@ -7,6 +7,7 @@ import { WorkerError } from "@local-browser/shared";
 import { loadConfig } from "./config.js";
 import { WorkerRelay } from "./relay.js";
 import { definitions, runTool } from "./tools.js";
+import {mountOAuth, oauthAuthorized} from "./oauth.js";
 
 const config = loadConfig();
 const app = express();
@@ -15,13 +16,20 @@ const httpServer = createServer(app);
 const relay = new WorkerRelay(config);
 
 function bearer(req: express.Request) { return req.headers.authorization?.replace(/^Bearer\s+/i, "") || ""; }
-function authorized(req: express.Request) { return bearer(req) === config.mcpToken; }
+function authorized(req: express.Request) { const token = bearer(req); return token === config.mcpToken || oauthAuthorized(token); }
+
+mountOAuth(app, config.mcpToken);
 
 app.get("/", (_req, res) => res.json({ok:true, service:"windows-browser-worker", version:"0.1.0", mcp:"/mcp", worker:relay.status()}));
 app.get("/healthz", (_req, res) => res.json({ok:true}));
 
 app.post("/mcp", async (req, res) => {
-  if (!authorized(req)) return res.status(401).json({error:"unauthorized"});
+  if (!authorized(req)) {
+    const proto = String(req.headers["x-forwarded-proto"] || req.protocol).split(",")[0]!.trim();
+    const host = String(req.headers["x-forwarded-host"] || req.headers.host).split(",")[0]!.trim();
+    res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-protected-resource/mcp"`);
+    return res.status(401).json({error:"unauthorized"});
+  }
   if (!isInitializeRequest(req.body) && !req.body?.method) return res.status(400).json({error:"invalid_mcp_request"});
   const mcp = new McpServer({name:"windows-browser-worker",version:"0.1.0"});
   for (const def of definitions) {
