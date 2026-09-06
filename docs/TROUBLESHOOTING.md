@@ -6,4 +6,5 @@
 - **Control not unique/not found:** reread the page, navigate to the intended product, and use exact visible text.
 - **Confirmation expired:** call the prepare/click tool again and confirm the newly returned summary/token.
 - **Payment unavailable:** install the official Alipay helper, run `alipay-bot check-wallet` locally, and keep final approval on the phone.
+- **Taobao slider rejects a correct manual drag:** stop automated access and run `start-human-verification.ps1`. Complete the check in the ordinary dedicated-profile Edge it opens, close that window, then run `resume-after-verification.ps1`. Do not repeatedly retry the slider from an automation-controlled session.
 - **Cloud timeout:** the local action may still be visible in Edge. Inspect before retrying to avoid duplicate orders.

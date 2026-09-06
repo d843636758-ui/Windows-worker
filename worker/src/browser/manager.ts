@@ -10,18 +10,31 @@ export class BrowserManager {
 
   async ensure() {
     if (this.context) return;
-    this.context = await chromium.launchPersistentContext(this.profileDir, {
+    const context = await chromium.launchPersistentContext(this.profileDir, {
       channel: "msedge",
       headless: !this.headed,
       viewport: null,
-      // Windows supports Chromium's process sandbox; keep it enabled for the
-      // dedicated shopping profile instead of accepting Playwright's default.
+      // Playwright disables Chromium's sandbox by default. Windows supports the
+      // sandbox, so retain it for the dedicated shopping profile.
       ignoreDefaultArgs: ["--no-sandbox"],
     });
-    this.context.on("page", page => { this.page = page; });
-    this.page = this.context.pages()[0] || await this.context.newPage();
+    this.context = context;
+    context.on("close", () => { if (this.context === context) { this.context = undefined; this.page = undefined; } });
+    context.on("page", page => { this.page = page; });
+    this.page = context.pages()[0] || await context.newPage();
   }
-  private async current() { await this.ensure(); if (!this.page || this.page.isClosed()) this.page=this.context!.pages().at(-1) || await this.context!.newPage(); return this.page; }
+  private async reset() { const context=this.context; this.context=undefined; this.page=undefined; await context?.close().catch(()=>{}); }
+  private async current() {
+    await this.ensure();
+    try {
+      if (!this.page || this.page.isClosed()) this.page=this.context!.pages().at(-1) || await this.context!.newPage();
+      return this.page;
+    } catch (error) {
+      if (!/closed|Target page, context or browser/i.test(error instanceof Error ? error.message : String(error))) throw error;
+      await this.reset(); await this.ensure();
+      return this.page!;
+    }
+  }
   async status() { await this.ensure(); const pages=this.context!.pages(); return {browser_ready:true,browser_name:"Microsoft Edge",profile:"ai-worker",current_url:(await this.current()).url(),tabs:pages.length}; }
   async open(url: string) { await this.ensure(); const page=await this.context!.newPage(); this.page=page; await page.goto(url,{waitUntil:"domcontentloaded",timeout:45_000}); return {ok:true,title:await page.title(),url:page.url()}; }
   async goto(url: string) { const page=await this.current(); await page.goto(url,{waitUntil:"domcontentloaded",timeout:45_000}); return {ok:true,title:await page.title(),url:page.url()}; }
@@ -38,7 +51,14 @@ export class BrowserManager {
   async press(key:string){assertAllowedKey(key);await (await this.current()).keyboard.press(key);return {ok:true};}
   async back(){const p=await this.current();await p.goBack({waitUntil:"domcontentloaded"});return {ok:true,url:p.url()};}
   async reload(){const p=await this.current();await p.reload({waitUntil:"domcontentloaded"});return {ok:true,url:p.url()};}
-  async screenshot(){const p=await this.current();const data=await p.screenshot({type:"jpeg",quality:75,fullPage:false});return {mime_type:"image/jpeg",base64:data.toString("base64"),title:await p.title(),url:p.url()};}
+  async screenshot(){
+    for(let attempt=0;attempt<2;attempt++){
+      const p=await this.current();
+      try{const data=await p.screenshot({type:"jpeg",quality:75,fullPage:false});return {mime_type:"image/jpeg",base64:data.toString("base64"),title:await p.title(),url:p.url()};}
+      catch(error){if(attempt || !/closed|Target page, context or browser/i.test(error instanceof Error?error.message:String(error)))throw error;await this.reset();}
+    }
+    throw new WorkerError("SCREENSHOT_FAILED","Could not recover an active browser page");
+  }
   async tabs(){await this.ensure();return Promise.all(this.context!.pages().map(async(p,i)=>({tab_id:String(i),title:await p.title(),url:p.url(),active:p===this.page})));}
   async switchTab(id:string){await this.ensure();const p=this.context!.pages()[Number(id)];if(!p)throw new WorkerError("TAB_NOT_FOUND","Tab does not exist");this.page=p;await p.bringToFront();return {ok:true,title:await p.title(),url:p.url()};}
   async closeTab(id:string){await this.ensure();const p=this.context!.pages()[Number(id)];if(!p)throw new WorkerError("TAB_NOT_FOUND","Tab does not exist");await p.close();this.page=this.context!.pages().at(-1);return {ok:true};}

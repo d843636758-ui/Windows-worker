@@ -22,6 +22,7 @@ export class TaobaoAdapter {
     await this.browser.goto(`https://s.taobao.com/search?q=${encodeURIComponent(query)}`);
     const page=await this.browser.pageHandle();
     await page.waitForLoadState("domcontentloaded");
+    await this.assertNoHumanVerification();
     const results=await page.locator('a[href*="item.taobao.com"],a[href*="detail.tmall.com"]').evaluateAll((nodes,limit)=>{
       const seen=new Set<string>(); const out:any[]=[];
       for(const node of nodes as HTMLAnchorElement[]){const href=node.href; if(!href||seen.has(href))continue; const text=(node.innerText||node.getAttribute("title")||"").trim(); if(!text)continue; seen.add(href); out.push({title:text.slice(0,300),url:href}); if(out.length>=limit)break;}
@@ -32,6 +33,7 @@ export class TaobaoAdapter {
 
   async inspect() {
     const page=await this.browser.pageHandle();
+    await this.assertNoHumanVerification();
     this.assertProduct(page.url());
     const data=await page.evaluate(()=>{
       const text=(document.body.innerText||"").replace(/\s+/g," ");
@@ -76,5 +78,6 @@ export class TaobaoAdapter {
   }
 
   private async checkoutSummary(){const page=await this.browser.pageHandle();const text=(await page.locator("body").innerText()).replace(/\s+/g," ");const total=text.match(/(?:实付款|合计|Total)[^¥￥0-9]{0,20}[¥￥]?\s*([0-9]+(?:\.[0-9]{1,2})?)/i)?.[1]||this.selected?.price||"unknown";return {...this.selected,total,checkout_url:page.url()};}
+  private async assertNoHumanVerification(){const page=await this.browser.pageHandle();const text=(await page.locator("body").innerText({timeout:5000}).catch(()=>"")).slice(0,5000);if(/拖动下方滑块|完成验证|验证失败|error:aE0VF6/i.test(text)||/sec\.taobao\.com/i.test(page.url()))throw new WorkerError("HUMAN_VERIFICATION_REQUIRED","Taobao requires manual verification. Automation has paused; run worker/scripts/start-human-verification.ps1, finish verification yourself, close that Edge window, then run resume-after-verification.ps1.");}
   private assertProduct(raw:string){const host=new URL(raw).hostname;if(!/(^|\.)((taobao|tmall)\.com)$/i.test(host))throw new WorkerError("NOT_PRODUCT_PAGE","Open an official Taobao or Tmall product page first");}
 }
