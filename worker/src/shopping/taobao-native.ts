@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { WorkerError } from "@local-browser/shared";
 import { Confirmations } from "../policy/safety.js";
@@ -10,6 +11,20 @@ const execFileAsync = promisify(execFile);
 const SOURCE_APP = "ChatGPT Windows Worker";
 const MAX_RESULT_BYTES = 8 * 1024 * 1024;
 const sleep = (milliseconds:number) => new Promise(resolve=>setTimeout(resolve,milliseconds));
+
+export function buildTaobaoInvocation(command:string,requestPath:string,outputPath:string,platform=process.platform) {
+  if (platform === "win32" && /\.(cmd|bat)$/i.test(command)) {
+    const executable = process.env.SystemRoot
+      ? `${process.env.SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
+      : "powershell.exe";
+    const wrapper = fileURLToPath(new URL("../../scripts/invoke-taobao.ps1",import.meta.url));
+    return {
+      executable,
+      args:["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",wrapper,"-Executable",command,"-RequestPath",requestPath,"-OutputPath",outputPath]
+    };
+  }
+  return {executable:command,args:["--request",requestPath,"-o",outputPath]};
+}
 
 export type NativeInvoke = (tool:string, args:Record<string,unknown>)=>Promise<unknown>;
 
@@ -61,14 +76,8 @@ export class TaobaoNativeClient {
     const outputPath = path.join(tempDir,"result.json");
     await fs.writeFile(requestPath,JSON.stringify({tool,arguments:{...args,sourceApp:SOURCE_APP}}),"utf8");
     try {
-      if (process.platform === "win32" && /\.(cmd|bat)$/i.test(command)) {
-        const comspec = process.env.ComSpec || "cmd.exe";
-        const quoted = (value:string) => `"${value.replace(/"/g,'""')}"`;
-        const line = `${quoted(command)} --request ${quoted(requestPath)} -o ${quoted(outputPath)}`;
-        await execFileAsync(comspec,["/d","/s","/c",`"${line}"`],{timeout:180_000,maxBuffer:1024*1024,windowsHide:true});
-      } else {
-        await execFileAsync(command,["--request",requestPath,"-o",outputPath],{timeout:180_000,maxBuffer:1024*1024,windowsHide:true});
-      }
+      const invocation = buildTaobaoInvocation(command,requestPath,outputPath);
+      await execFileAsync(invocation.executable,invocation.args,{timeout:180_000,maxBuffer:1024*1024,windowsHide:true});
       const stat = await fs.stat(outputPath);
       if (stat.size > MAX_RESULT_BYTES) throw new WorkerError("TAOBAO_RESULT_TOO_LARGE","Taobao desktop returned more than 8 MB");
       return JSON.parse(await fs.readFile(outputPath,"utf8"));
