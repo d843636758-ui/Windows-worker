@@ -1,12 +1,6 @@
 param([string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")))
 $ErrorActionPreference = "Stop"
 Set-Location $ProjectRoot
-Stop-ScheduledTask -TaskName "AI Browser Worker" -ErrorAction SilentlyContinue
-Get-CimInstance Win32_Process | Where-Object {
-  $_.Name -eq "node.exe" -and $_.CommandLine -match "worker[\\/]+dist[\\/]+index\.js"
-} | ForEach-Object {
-  Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
-}
 $git = Get-Command git -ErrorAction SilentlyContinue
 if ($git -and (Test-Path (Join-Path $ProjectRoot ".git"))) {
   git pull --ff-only origin main
@@ -23,6 +17,15 @@ if ($git -and (Test-Path (Join-Path $ProjectRoot ".git"))) {
   } finally {
     Remove-Item -Path $temporary -Recurse -Force -ErrorAction SilentlyContinue
   }
+}
+
+# Only stop the running worker after the source update has succeeded. A
+# temporary GitHub/VPN failure must not take the existing worker offline.
+Stop-ScheduledTask -TaskName "AI Browser Worker" -ErrorAction SilentlyContinue
+Get-CimInstance Win32_Process | Where-Object {
+  $_.Name -eq "node.exe" -and $_.CommandLine -match "worker[\\/]+dist[\\/]+index\.js"
+} | ForEach-Object {
+  Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
 }
 
 # Discover the real launcher while this interactive updater has the complete
