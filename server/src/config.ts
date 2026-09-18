@@ -14,6 +14,7 @@ export function loadConfig() {
   }
   return {
     port: Number(process.env.PORT || 8080),
+    dataDir: process.env.DATA_DIR?.trim() || "/data",
     workerSecret,
     mcpToken,
     allowedWorkers: new Set((process.env.ALLOW_WORKERS || "windows-main").split(",").map(v => v.trim()).filter(Boolean)),

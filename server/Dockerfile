@@ -18,5 +18,6 @@ COPY --from=build /app/shared/dist ./shared/dist
 COPY --from=build /app/server/package.json ./server/
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/node_modules ./node_modules
+RUN mkdir -p /data && chown node:node /data
 USER node
 CMD ["node", "server/dist/index.js"]

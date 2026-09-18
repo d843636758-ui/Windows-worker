@@ -16,9 +16,9 @@ const httpServer = createServer(app);
 const relay = new WorkerRelay(config);
 
 function bearer(req: express.Request) { return req.headers.authorization?.replace(/^Bearer\s+/i, "") || ""; }
-function authorized(req: express.Request) { const token = bearer(req); return token === config.mcpToken || oauthAuthorized(token); }
+function authorized(req: express.Request) { const token = bearer(req); return token === config.mcpToken || oauthAuthorized(token,config.mcpToken); }
 
-mountOAuth(app, config.mcpToken);
+mountOAuth(app, config.mcpToken, config.dataDir);
 
 app.get("/", (_req, res) => res.json({ok:true, service:"windows-browser-worker", version:"0.1.0", mcp:"/mcp", worker:relay.status()}));
 app.get("/healthz", (_req, res) => res.json({ok:true}));
