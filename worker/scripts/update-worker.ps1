@@ -25,31 +25,46 @@ if ($git -and (Test-Path (Join-Path $ProjectRoot ".git"))) {
   }
 }
 
-# Resolve Taobao while this interactive updater has the user's complete
-# environment, then persist the verified absolute command for the hidden task.
-$taobaoCandidates = @()
+# Discover the real launcher while this interactive updater has the complete
+# user environment. Taobao releases do not all use the same subdirectory.
+$taobaoRoots = @()
 foreach ($base in @($env:APPDATA, $env:LOCALAPPDATA)) {
   if (!$base) { continue }
   $record = Join-Path $base "taobao\install-location.txt"
   if (Test-Path -LiteralPath $record) {
     $root = (Get-Content -LiteralPath $record -Raw).Trim().Trim('"')
-    if ($root) {
-      $taobaoCandidates += Join-Path $root "bin\taobao-native.cmd"
-      $taobaoCandidates += Join-Path $root "resources\app\bin\taobao-native.cmd"
-      $taobaoCandidates += Join-Path $root "resources\bin\taobao-native.cmd"
-    }
+    if ($root) { $taobaoRoots += $root }
   }
 }
 if ($env:LOCALAPPDATA) {
-  $taobaoCandidates += Join-Path $env:LOCALAPPDATA "Programs\taobao\bin\taobao-native.cmd"
+  $taobaoRoots += Join-Path $env:LOCALAPPDATA "Programs\taobao"
+  $taobaoRoots += Join-Path $env:LOCALAPPDATA "taobao"
 }
-$taobaoExecutable = $taobaoCandidates |
-  Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+if ($env:APPDATA) {
+  $taobaoRoots += Join-Path $env:APPDATA "taobao"
+}
+$taobaoRoots = @($taobaoRoots | Select-Object -Unique)
+
+$taobaoFiles = foreach ($root in $taobaoRoots) {
+  if (!(Test-Path -LiteralPath $root -PathType Container)) { continue }
+  Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^taobao-native(\.(cmd|bat|exe))?$' }
+}
+$taobaoExecutable = $taobaoFiles |
+  Sort-Object @{ Expression = {
+    switch -Regex ($_.Extension) {
+      '^\.cmd$' { 0; break }
+      '^\.exe$' { 1; break }
+      '^\.bat$' { 2; break }
+      default { 3 }
+    }
+  }}, FullName |
   Select-Object -First 1
+
 if (!$taobaoExecutable) {
-  throw "Taobao Native CLI was not found while updating. Checked: $($taobaoCandidates -join '; ')"
+  throw "Taobao Native CLI was not found under: $($taobaoRoots -join '; ')"
 }
-$taobaoExecutable = (Resolve-Path -LiteralPath $taobaoExecutable).Path
+$taobaoExecutable = $taobaoExecutable.FullName
 $envFile = Join-Path $ProjectRoot ".env"
 $envLines = if (Test-Path -LiteralPath $envFile) {
   @(Get-Content -LiteralPath $envFile | Where-Object { $_ -notmatch '^TAOBAO_NATIVE_PATH=' })
