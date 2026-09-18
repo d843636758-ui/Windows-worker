@@ -119,17 +119,34 @@ export class TaobaoNativeClient {
 
   async invoke(tool:string,args:Record<string,unknown>) {
     const command = await installedCommand(this.explicitPath);
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(),"taobao-native-"));
+    // Taobao Desktop only authorizes request/output files under the caller's
+    // workspace. %TEMP% may be readable to Node but rejected by the CLI.
+    const tempDir = await fs.mkdtemp(path.join(process.cwd(),".taobao-native-"));
     const requestPath = path.join(tempDir,"request.json");
     const outputPath = path.join(tempDir,"result.json");
     await fs.writeFile(requestPath,JSON.stringify({tool,arguments:{...args,sourceApp:SOURCE_APP}}),"utf8");
     try {
       const invocation = buildTaobaoInvocation(command,requestPath,outputPath);
-      await execFileAsync(invocation.executable,invocation.args,{timeout:180_000,maxBuffer:1024*1024,windowsHide:true});
+      const execution = await execFileAsync(invocation.executable,invocation.args,{timeout:180_000,maxBuffer:1024*1024,windowsHide:true});
+      const stdout=String(execution.stdout||"").trim();
+      const stderr=String(execution.stderr||"").trim();
+      // Some CLI builds return JSON on stdout even when -o is supplied.
+      // Accept that valid response before waiting for an asynchronous file.
+      if (stdout) {
+        try { return JSON.parse(stdout); } catch {}
+      }
       // The Windows .cmd launcher may return before the desktop process has
       // finished writing -o. Wait briefly instead of misclassifying that race
       // as a missing installation.
-      const stat = await waitForResultFile(outputPath);
+      let stat;
+      try { stat = await waitForResultFile(outputPath); }
+      catch (error) {
+        if (error instanceof WorkerError && error.code==="TAOBAO_NATIVE_NO_RESULT") {
+          const details=[stdout&&`stdout: ${stdout}`,stderr&&`stderr: ${stderr}`].filter(Boolean).join("; ");
+          throw new WorkerError(error.code,`${error.message}${details?` ${details}`:""}`.slice(0,2000));
+        }
+        throw error;
+      }
       if (stat.size > MAX_RESULT_BYTES) throw new WorkerError("TAOBAO_RESULT_TOO_LARGE","Taobao desktop returned more than 8 MB");
       return JSON.parse(await fs.readFile(outputPath,"utf8"));
     } catch (error) {
