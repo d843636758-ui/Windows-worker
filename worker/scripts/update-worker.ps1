@@ -2,6 +2,11 @@ param([string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")))
 $ErrorActionPreference = "Stop"
 Set-Location $ProjectRoot
 Stop-ScheduledTask -TaskName "AI Browser Worker" -ErrorAction SilentlyContinue
+Get-CimInstance Win32_Process | Where-Object {
+  $_.Name -eq "node.exe" -and $_.CommandLine -match "worker[\\/]+dist[\\/]+index\.js"
+} | ForEach-Object {
+  Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+}
 $git = Get-Command git -ErrorAction SilentlyContinue
 if ($git -and (Test-Path (Join-Path $ProjectRoot ".git"))) {
   git pull --ff-only origin main
