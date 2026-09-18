@@ -116,7 +116,9 @@ export class TaobaoNativeClient {
     } catch (error) {
       if (error instanceof WorkerError) throw error;
       const message = error instanceof Error ? error.message : String(error);
-      if (/ENOENT|not recognized|cannot find/i.test(message)) throw new WorkerError("TAOBAO_NATIVE_NOT_INSTALLED","taobao-native was not found. Install or restart the official Taobao desktop client, then restart the Windows worker.");
+      // The executable path is verified by installedCommand. Do not reinterpret
+      // errors emitted by the CLI itself as an installation failure.
+      if (/\bENOENT\b/i.test(message)) throw new WorkerError("TAOBAO_NATIVE_NOT_INSTALLED",`taobao-native could not be launched at ${command}: ${message}`.slice(0,1000));
       throw new WorkerError("TAOBAO_NATIVE_FAILED",message.slice(0,1000));
     } finally {
       await fs.rm(tempDir,{recursive:true,force:true}).catch(()=>{});
