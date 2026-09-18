@@ -22,6 +22,18 @@ A split cloud/local MCP system that lets an authorized AI use a real Microsoft E
 6. Run `powershell -ExecutionPolicy Bypass -File worker/scripts/install-startup.ps1`.
 7. Connect the MCP client to `https://YOUR-DOMAIN/mcp` using `MCP_AUTH_TOKEN` as its bearer token.
 
+## Official Taobao desktop integration
+
+The existing Windows worker can also call the official Taobao desktop CLI, so
+Taobao shopping does not depend on an Edge login. Install and sign in to the
+official Taobao desktop client on the same Windows machine, then restart the
+worker. It discovers `%APPDATA%\\taobao\\install-location.txt` automatically.
+Set `TAOBAO_NATIVE_PATH` only when the CLI is installed elsewhere.
+
+Native tools are exposed with the `taobao_native_` prefix. Product search,
+page reading, and SKU inspection are read-only. Adding to cart and sending
+WangWang messages use short-lived, one-time confirmation tokens.
+
 Read [docs/WINDOWS.md](docs/WINDOWS.md), [docs/ZEABUR.md](docs/ZEABUR.md), and [docs/SECURITY.md](docs/SECURITY.md) before real shopping.
 
 ## Commands

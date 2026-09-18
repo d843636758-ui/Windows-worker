@@ -8,4 +8,10 @@ The first browser launch is visible. Sign in to Taobao yourself and solve any CA
 
 After build, run `worker/scripts/install-startup.ps1`. Logs are written under `%LOCALAPPDATA%\AI-Browser-Worker\logs`. Run `doctor.ps1` when the worker appears offline. The PC must be powered on, logged in, online, and awake for browser operations.
 
+The same startup worker discovers the official Taobao desktop CLI automatically
+from `%APPDATA%\taobao\install-location.txt`. Sign in to the official Taobao
+desktop client yourself; no Taobao password, SMS code, or cookie is sent to the
+relay. To update an existing installation after this feature is deployed, run
+`worker/scripts/update-worker.ps1` once from PowerShell.
+
 To remove automatic startup, run `worker/scripts/uninstall-startup.ps1`. It deliberately preserves the dedicated browser profile and logs.

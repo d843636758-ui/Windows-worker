@@ -5,7 +5,7 @@ export const WorkerHello = z.object({
   worker_id: z.string().min(1).max(80),
   secret: z.string().min(16),
   version: z.string(),
-  capabilities: z.array(z.enum(["browser", "shopping", "payment"])),
+  capabilities: z.array(z.enum(["browser", "shopping", "payment", "taobao_native"])),
 });
 
 export const WorkerHeartbeat = z.object({
@@ -42,6 +42,9 @@ export const TOOL_NAMES = [
   "browser_switch_tab", "browser_close_tab", "shopping_status",
   "shopping_search", "shopping_inspect_product", "shopping_select_sku",
   "shopping_prepare_order", "shopping_submit_order", "shopping_payment_status",
+  "taobao_native_status", "taobao_native_search", "taobao_native_open_product",
+  "taobao_native_read_page", "taobao_native_get_skus", "taobao_native_get_sku_price", "taobao_native_add_to_cart",
+  "taobao_native_open_chat", "taobao_native_send_chat_message",
   "worker_status", "worker_capabilities",
 ] as const;
 

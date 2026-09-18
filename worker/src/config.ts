@@ -16,6 +16,7 @@ export function loadWorkerConfig() {
     edgeProfileDir: (process.env.EDGE_PROFILE_DIR || path.join(local, "AI-Browser-Worker", "edge-profile")).replace(/^%LOCALAPPDATA%/i, local),
     headed: !["0","false","no"].includes((process.env.HEADED || "true").toLowerCase()),
     alipayBotPath: process.env.ALIPAY_BOT_PATH || "alipay-bot",
+    taobaoNativePath: process.env.TAOBAO_NATIVE_PATH?.trim(),
     logDir: path.join(local, "AI-Browser-Worker", "logs"),
   };
 }
