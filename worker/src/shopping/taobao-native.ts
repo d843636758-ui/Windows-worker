@@ -28,6 +28,32 @@ export function buildTaobaoInvocation(command:string,requestPath:string,outputPa
 
 export type NativeInvoke = (tool:string, args:Record<string,unknown>)=>Promise<unknown>;
 
+function cleanInstallLocation(raw:string) {
+  return raw.trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+}
+
+export function buildWindowsInstallCandidates(rawLocation:string|undefined,env:NodeJS.ProcessEnv=process.env) {
+  const candidates:string[]=[];
+  const addRoot=(raw?:string)=>{
+    if (!raw) return;
+    const location=cleanInstallLocation(raw);
+    if (!location) return;
+    if (/taobao-native\.(cmd|bat|exe)$/i.test(location)) candidates.push(location);
+    else {
+      candidates.push(path.win32.join(location,"bin","taobao-native.cmd"));
+      candidates.push(path.win32.join(location,"resources","app","bin","taobao-native.cmd"));
+      candidates.push(path.win32.join(location,"resources","bin","taobao-native.cmd"));
+    }
+  };
+  addRoot(rawLocation);
+  if (env.LOCALAPPDATA) {
+    addRoot(path.win32.join(env.LOCALAPPDATA,"Programs","taobao"));
+    addRoot(path.win32.join(env.LOCALAPPDATA,"taobao"));
+  }
+  if (env.APPDATA) addRoot(path.win32.join(env.APPDATA,"taobao"));
+  return [...new Set(candidates.map(candidate=>path.win32.normalize(candidate)))];
+}
+
 function assertOfficialProductUrl(raw:string) {
   const url = new URL(raw);
   const host = url.hostname.toLowerCase();
@@ -53,14 +79,20 @@ function indexedText(value:unknown, found:Array<{index:number;text:string}>=[]) 
 async function installedCommand(explicit?:string) {
   if (explicit) return explicit;
   if (process.platform === "win32") {
-    const appData = process.env.APPDATA;
-    if (appData) {
+    let recordedLocation:string|undefined;
+    for (const base of [process.env.APPDATA,process.env.LOCALAPPDATA]) {
+      if (!base) continue;
       try {
-        const location = (await fs.readFile(path.join(appData,"taobao","install-location.txt"),"utf8")).trim();
-        if (location) return path.join(location,"bin","taobao-native.cmd");
+        recordedLocation = await fs.readFile(path.join(base,"taobao","install-location.txt"),"utf8");
+        if (cleanInstallLocation(recordedLocation)) break;
       } catch {}
     }
-    return "taobao-native.cmd";
+    const candidates=buildWindowsInstallCandidates(recordedLocation);
+    if (process.env.TAOBAO_NATIVE_PATH) candidates.unshift(cleanInstallLocation(process.env.TAOBAO_NATIVE_PATH));
+    for (const candidate of candidates) {
+      try { await fs.access(candidate); return candidate; } catch {}
+    }
+    throw new WorkerError("TAOBAO_NATIVE_NOT_INSTALLED",`taobao-native was not found. Checked: ${candidates.join("; ") || "no installation locations"}`);
   }
   if (process.platform === "darwin") return path.join(os.homedir(),"Library","Application Support","taobao","cli","taobao-runner");
   return "taobao-native";

@@ -1,8 +1,18 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildTaobaoInvocation, TaobaoNativeAdapter } from "./taobao-native.js";
+import path from "node:path";
+import { buildTaobaoInvocation, buildWindowsInstallCandidates, TaobaoNativeAdapter } from "./taobao-native.js";
 
 describe("TaobaoNativeAdapter",()=>{
+  it("discovers quoted and fallback Windows Taobao install locations",()=>{
+    const candidates=buildWindowsInstallCandidates('"C:\\Users\\Ding\\AppData\\Local\\Programs\\taobao"',{
+      LOCALAPPDATA:"C:\\Users\\Ding\\AppData\\Local",
+      APPDATA:"C:\\Users\\Ding\\AppData\\Roaming"
+    });
+    assert.equal(candidates[0],path.win32.normalize("C:\\Users\\Ding\\AppData\\Local\\Programs\\taobao\\bin\\taobao-native.cmd"));
+    assert.equal(candidates.some(candidate=>candidate.includes('"')),false);
+    assert.equal(candidates.some(candidate=>candidate.endsWith(path.win32.normalize("resources\\app\\bin\\taobao-native.cmd"))),true);
+  });
   it("passes Windows cmd paths through PowerShell without cmd.exe quote nesting",()=>{
     const command="C:\\Users\\Ding Name\\AppData\\Local\\Programs\\taobao\\bin\\taobao-native.cmd";
     const request="C:\\Temp Folder\\request.json";
