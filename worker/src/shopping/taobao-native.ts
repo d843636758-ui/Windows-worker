@@ -12,6 +12,22 @@ const SOURCE_APP = "ChatGPT Windows Worker";
 const MAX_RESULT_BYTES = 8 * 1024 * 1024;
 const sleep = (milliseconds:number) => new Promise(resolve=>setTimeout(resolve,milliseconds));
 
+async function waitForResultFile(resultPath:string,timeoutMs=30_000) {
+  const deadline=Date.now()+timeoutMs;
+  while (Date.now()<deadline) {
+    try { return await fs.stat(resultPath); }
+    catch (error) {
+      const code=(error as NodeJS.ErrnoException)?.code;
+      if (code!=="ENOENT") throw error;
+      await sleep(250);
+    }
+  }
+  throw new WorkerError(
+    "TAOBAO_NATIVE_NO_RESULT",
+    `Taobao Native CLI launched but did not create its result file within ${Math.round(timeoutMs/1000)} seconds.`
+  );
+}
+
 export function buildTaobaoInvocation(command:string,requestPath:string,outputPath:string,platform=process.platform) {
   if (platform === "win32" && /\.(cmd|bat)$/i.test(command)) {
     const executable = process.env.SystemRoot
@@ -110,7 +126,10 @@ export class TaobaoNativeClient {
     try {
       const invocation = buildTaobaoInvocation(command,requestPath,outputPath);
       await execFileAsync(invocation.executable,invocation.args,{timeout:180_000,maxBuffer:1024*1024,windowsHide:true});
-      const stat = await fs.stat(outputPath);
+      // The Windows .cmd launcher may return before the desktop process has
+      // finished writing -o. Wait briefly instead of misclassifying that race
+      // as a missing installation.
+      const stat = await waitForResultFile(outputPath);
       if (stat.size > MAX_RESULT_BYTES) throw new WorkerError("TAOBAO_RESULT_TOO_LARGE","Taobao desktop returned more than 8 MB");
       return JSON.parse(await fs.readFile(outputPath,"utf8"));
     } catch (error) {
